@@ -1,0 +1,113 @@
+## 任务说明
+你的任务是分析当前对话上下文，并生成一个 TurnPlan JSON。
+
+TurnPlan 顶层只允许以下三个字段：
+- `task`
+- `knowledge`
+- `chitchat`
+
+规则：
+- 这三个字段的值必须是 JSON 对象或 null。
+- 请根据客户真实表达的意图生成结果。
+- 如果客户同时表达了多个意图，可以同时填写多个轨道。
+- 后续执行引擎一次只能处理一个轨道；如果你输出多个轨道，系统会再向客户澄清先处理哪一个。
+- 金融领域特别注意：
+  - “查余额/查账户/查交易/查流水”属于 task（账户余额查询/交易明细查询），不是 knowledge。
+  - “申请贷款/办贷款”属于 task（贷款申请）；“贷款产品利率/条件咨询”属于 knowledge。
+  - “挂失/卡丢了”属于 task（信用卡挂失）；“信用卡年费/权益咨询”属于 knowledge。
+  - “投诉/转账没到账要说法”属于 task（投诉工单）。
+  - 涉及收益、利率、审批结果时不要在任何字段中做承诺性表述。
+- 如果客户正在办理某个业务流程，且当前输入是在回答该流程需要的信息（如账户号、金额、期限、原因、验证码等），优先输出 task 轨道的 set_slots 命令，把能提取的槽位填上。
+- 不要输出额外字段。
+- 只输出合法 JSON，不要输出 markdown。
+- 最终答案只能是 JSON 文本本身，不要使用 Markdown 代码块包裹，例如以三个反引号和 json 开头的结构。
+
+---
+
+## Task 结构
+当客户是在办理业务时，填写 `task`：
+
+Task 对象示例：
+{
+  "commands": [
+    {"command": "start_flow", "flow": "<flow_id>"},
+    {"command": "resume_flow"},
+    {"command": "resume_flow", "flow": "<flow_id>"},
+    {"command": "cancel_flow"},
+    {"command": "set_slots", "slots": {"<slot_name>": "<value>"}}
+  ]
+}
+
+仅允许以下 task commands：
+- `start_flow`
+- `resume_flow`
+- `cancel_flow`
+- `set_slots`
+
+流程命令语义：
+- `resume_flow`：客户表达“继续、接着、恢复刚才的业务”等意图时使用；指定业务用 `flow`，未指定则省略 `flow`。
+- `cancel_flow`：客户表达“不办了、取消、算了”等意图时使用。
+
+可用 flows：
+{{ available_flows_json }}
+
+---
+
+## Knowledge 结构
+当客户是在咨询信息时，填写 `knowledge`：
+
+Knowledge 对象示例：
+{
+  "intents": ["<intent>"]
+}
+
+允许的 intent（从下列选项中选择，可以选择一个或多个）：
+{{ knowledge_intents_json }}
+
+---
+
+## Chitchat 结构
+当客户不是咨询信息或者办理业务时，请填写 `chitchat`：
+
+Chitchat 对象示例：
+{
+  "chat": "客户的问题"
+}
+
+---
+
+## 当前状态
+
+### Active Task
+{{ active_task_json }}
+
+### Interrupted Tasks
+{{ interrupted_tasks_json }}
+
+### Focused Object
+{{ focused_object_json }}
+
+---
+
+## 对话历史
+{{ current_conversation }}
+
+---
+
+## 当前任务
+请根据客户最后一句话生成 TurnPlan：
+"""{{ user_message }}"""
+
+TurnPlan 只允许输出以下形状：
+
+{
+  "task": null,
+  "knowledge": null,
+  "chitchat": null
+}
+
+请根据客户真实意图，把对应字段替换成对象；没有命中的字段保持 null。
+
+不要输出解释。
+不要使用 markdown 代码块。
+你的 TurnPlan：

@@ -1,0 +1,443 @@
+slots:
+  account_no:
+    type: text
+    label: 账户号
+    description: 银行账户号（如 6222 开头的账号，非卡号时由系统解析）
+
+  card_no:
+    type: text
+    label: 卡号
+    description: 银行卡号或信用卡号（16-19 位数字）
+
+  query_date:
+    type: text
+    label: 查询日期
+    description: 交易查询的目标日期（YYYY-MM-DD）或“近 7 天”等范围表述，由系统解析为时间区间
+
+  transaction_no:
+    type: text
+    label: 交易流水号
+    description: 账户交易的流水编号
+
+  loan_type:
+    type: text
+    label: 贷款类型
+    description: 贷款类型，如消费贷款、经营贷款、分期贷款、抵押贷款
+
+  loan_amount:
+    type: number
+    label: 贷款金额
+    description: 申请贷款的金额（元）
+
+  loan_term_months:
+    type: number
+    label: 贷款期限
+    description: 申请贷款的期限（月）
+
+  loan_purpose:
+    type: text
+    label: 贷款用途
+    description: 贷款资金用途，如日常消费、装修、教育、经营周转
+
+  limit_no:
+    type: text
+    label: 授信额度编号
+    description: 客户有效授信额度编号（系统内部查询填充，不要向用户索要）
+
+  credit_limit_found:
+    type: text
+    label: 额度查询结果标记
+    description: 系统内部状态标记，由系统填充（是否找到可用授信额度），不要向用户索要
+
+  loan_submit_success:
+    type: text
+    label: 贷款提交结果标记
+    description: 系统内部状态标记，由系统填充（贷款申请是否提交成功），不要向用户索要
+
+  application_no:
+    type: text
+    label: 贷款申请编号
+    description: 贷款申请提交成功后返回的申请编号（由系统填充）
+
+  loss_card_no:
+    type: text
+    label: 挂失卡号
+    description: 需要挂失的银行卡或信用卡卡号
+
+  loss_reason:
+    type: text
+    label: 挂失原因
+    description: 挂失原因，如丢失、被盗、疑似盗刷
+
+  id_verify_info:
+    type: text
+    label: 身份验证信息
+    description: 用于身份核验的信息（证件号后 6 位或预留手机号），提交中台前需脱敏处理
+
+  loss_result:
+    type: text
+    label: 挂失结果标记
+    description: 系统内部状态标记，由系统填充（挂失是否成功），不要向用户索要
+
+  ticket_type:
+    type: text
+    label: 工单类型
+    description: 工单类型，取值：账户问题、交易问题、理财问题、贷款问题、还款问题、投诉、其他
+
+  related_business_no:
+    type: text
+    label: 关联业务编号
+    description: 工单关联的业务编号（交易流水号/申请编号等），无则填“无”
+
+  problem_description:
+    type: text
+    label: 问题描述
+    description: 工单的问题描述内容
+
+  ticket_create_success:
+    type: text
+    label: 工单创建结果标记
+    description: 系统内部状态标记，由系统填充（工单是否创建成功），不要向用户索要
+
+  account_query_success:
+    type: text
+    label: 账户查询结果标记
+    description: 系统内部状态标记，由系统填充（账户查询是否成功），不要向用户索要
+
+  transaction_query_success:
+    type: text
+    label: 交易查询结果标记
+    description: 系统内部状态标记，由系统填充（交易查询是否成功），不要向用户索要
+
+flows:
+  onboarding:
+    name: 欢迎引导
+    description: 聊天窗口初次打开时欢迎客户，并介绍助手可办理的金融业务。通常由系统主动触发。
+    steps:
+      - id: start
+        type: start
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          text: "您好，这里是金融智能客服助手。我可以帮您查询账户余额与交易明细，咨询存款、贷款、理财、信用卡等产品信息，办理贷款申请、信用卡挂失，或为您提交投诉工单。请问有什么可以帮您？"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  account_balance_query:
+    name: 账户余额查询
+    description: 帮客户查询银行账户余额、可用余额与冻结金额。收集账户号或卡号后调用账户查询接口。
+    steps:
+      - id: start
+        type: start
+        next: ask_account
+      - id: ask_account
+        type: collect
+        slot_name: account_no
+        response:
+          text: "请提供您的账户号或银行卡号，我来为您查询账户余额。"
+        next: lookup_balance
+      - id: lookup_balance
+        type: action
+        action: action_query_account_balance
+        next: branch_result
+      - id: branch_result
+        type: collect
+        slot_name: account_query_success
+        response:
+          text: "正在为您查询账户余额，请稍候。"
+        next:
+          - if: "slots.get('account_query_success') == 'true'"
+            then: show_balance
+          - else: lookup_failed
+      - id: show_balance
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "您的账户{{ slots.account_no }}当前状态为{{ slots.account_status_desc }}：账户余额 {{ slots.balance_amount }} 元，可用余额 {{ slots.available_amount }} 元，冻结金额 {{ slots.frozen_amount }} 元。{{ slots.account_product_name }}"
+        next: end
+      - id: lookup_failed
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "{{ slots.account_query_message }}"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  transaction_query:
+    name: 交易明细查询
+    description: 帮客户查询账户交易流水。收集账户号或卡号，可选收集查询日期或时间范围，返回交易金额、时间、交易对象等信息。
+    steps:
+      - id: start
+        type: start
+        next: ask_account
+      - id: ask_account
+        type: collect
+        slot_name: account_no
+        response:
+          text: "请提供您的账户号或银行卡号。"
+        next: ask_date
+      - id: ask_date
+        type: collect
+        slot_name: query_date
+        response:
+          text: "请问您想查询哪一天的交易？可以说具体日期（例如 2026-08-26），也可以说“近 7 天”或“最近一个月”。"
+        next: lookup_transactions
+      - id: lookup_transactions
+        type: action
+        action: action_query_transactions
+        next: branch_result
+      - id: branch_result
+        type: collect
+        slot_name: transaction_query_success
+        response:
+          text: "正在为您查询交易明细，请稍候。"
+        next:
+          - if: "slots.get('transaction_query_success') == 'true'"
+            then: show_transactions
+          - else: lookup_failed
+      - id: show_transactions
+        type: action
+        action: action_response
+        args:
+          mode: rephrase
+          text: "已为您查询到账户{{ slots.account_no }}在{{ slots.query_date_desc }}的交易，共 {{ slots.transaction_count }} 笔：{{ slots.transaction_summary }}如需查看某笔交易的详情，请告诉我交易流水号。"
+          prompt: |
+            你是一个中文金融客服助手，语气专业、友好、简洁。
+            下面是交易查询结果，请整理成清晰的中文回复（可用分号或换行分列各笔交易），
+            金额保留两位小数并标注收支方向，不要编造任何数据：
+            对话上下文：
+            {history}
+            用户最后一句：
+            用户：{user_message}
+            查询结果：{current_response}
+            整理后的回复：
+        next: end
+      - id: lookup_failed
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "{{ slots.transaction_query_message }}"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  loan_application:
+    name: 贷款申请
+    description: 引导客户提交消费贷款等贷款申请。依次收集贷款类型、金额、期限、用途，校验授信额度后提交申请并返回申请编号。
+    steps:
+      - id: start
+        type: start
+        next: ask_loan_type
+      - id: ask_loan_type
+        type: collect
+        slot_name: loan_type
+        response:
+          text: "请问您想申请哪种贷款？目前支持消费贷款、经营贷款、分期贷款等，您可以直接说用途，我来帮您匹配。"
+        next: ask_amount
+      - id: ask_amount
+        type: collect
+        slot_name: loan_amount
+        response:
+          text: "请问您计划申请多少金额？（单位：元）"
+        next: ask_term
+      - id: ask_term
+        type: collect
+        slot_name: loan_term_months
+        response:
+          text: "请问贷款期限是多少个月？"
+        next: ask_purpose
+      - id: ask_purpose
+        type: collect
+        slot_name: loan_purpose
+        response:
+          text: "请简单说明贷款用途，例如日常消费、装修、教育或经营周转。"
+        next: fetch_credit_limit
+      - id: fetch_credit_limit
+        type: action
+        action: action_fetch_credit_limit
+        next: branch_limit
+      - id: branch_limit
+        type: collect
+        slot_name: credit_limit_found
+        response:
+          text: "正在为您查询授信额度，请稍候。"
+        next:
+          - if: "slots.get('credit_limit_found') == 'true'"
+            then: submit_application
+          - else: no_credit_limit
+      - id: submit_application
+        type: action
+        action: action_submit_loan_application
+        next: branch_submit
+      - id: branch_submit
+        type: collect
+        slot_name: loan_submit_success
+        response:
+          text: "正在为您提交贷款申请，请稍候。"
+        next:
+          - if: "slots.get('loan_submit_success') == 'true'"
+            then: submit_success
+          - else: submit_failed
+      - id: submit_success
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "您的贷款申请已提交成功，申请编号为 {{ slots.application_no }}。申请金额 {{ slots.loan_amount }} 元、期限 {{ slots.loan_term_months }} 个月、用途为{{ slots.loan_purpose }}。系统将进行风控审核，审核结果会第一时间通知您。您可以随时问我贷款申请进度来查询状态。"
+        next: end
+      - id: submit_failed
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "{{ slots.loan_submit_message }}"
+        next: end
+      - id: no_credit_limit
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "{{ slots.credit_limit_message }}您也可以回复“转人工”，由客户经理协助您完成授信评估。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  credit_card_loss_report:
+    name: 信用卡挂失
+    description: 引导客户完成信用卡（或银行卡）挂失。收集挂失卡号、挂失原因并完成身份验证后提交挂失。
+    steps:
+      - id: start
+        type: start
+        next: ask_card_no
+      - id: ask_card_no
+        type: collect
+        slot_name: loss_card_no
+        response:
+          text: "请提供需要挂失的卡号。挂失后该卡将无法交易，请确认后再提供。"
+        next: ask_reason
+      - id: ask_reason
+        type: collect
+        slot_name: loss_reason
+        response:
+          text: "请告诉我挂失原因，例如卡片丢失、被盗或疑似盗刷。"
+        next: ask_verify
+      - id: ask_verify
+        type: collect
+        slot_name: id_verify_info
+        response:
+          text: "为保障您的账户安全，请提供证件号码后 6 位或银行预留手机号进行身份验证。"
+        next: report_loss
+      - id: report_loss
+        type: action
+        action: action_report_card_loss
+        next: branch_result
+      - id: branch_result
+        type: collect
+        slot_name: loss_result
+        response:
+          text: "正在为您办理挂失，请稍候。"
+        next:
+          - if: "slots.get('loss_result') == 'success'"
+            then: report_success
+          - else: report_failed
+      - id: report_success
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "挂失成功。卡号尾号{{ slots.loss_card_tail }}的卡片已于 {{ slots.loss_time }} 挂失（挂失编号 {{ slots.loss_report_no }}），后续该卡不能发起新交易。请您尽快办理补卡，如存在可疑交易，建议立即提交投诉工单或联系人工客服。"
+        next: end
+      - id: report_failed
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "{{ slots.loss_message }}"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  complaint_ticket:
+    name: 投诉工单
+    description: 为客户创建投诉或问题工单。收集工单类型、关联业务编号与问题描述，提交后返回工单编号及预计处理时间。
+    steps:
+      - id: start
+        type: start
+        next: ask_ticket_type
+      - id: ask_ticket_type
+        type: collect
+        slot_name: ticket_type
+        response:
+          text: "请问您的问题属于哪一类？可选：账户问题、交易问题、理财问题、贷款问题、还款问题、投诉或其他。"
+        next: ask_related_no
+      - id: ask_related_no
+        type: collect
+        slot_name: related_business_no
+        response:
+          text: "如果有关联的业务编号（如交易流水号、贷款申请编号），请告诉我；如果没有，请回复“无”。"
+        next: ask_description
+      - id: ask_description
+        type: collect
+        slot_name: problem_description
+        response:
+          text: "请详细描述您遇到的问题，包括发生时间和具体表现。"
+        next: create_ticket
+      - id: create_ticket
+        type: action
+        action: action_create_ticket
+        next: branch_result
+      - id: branch_result
+        type: collect
+        slot_name: ticket_create_success
+        response:
+          text: "正在为您创建工单，请稍候。"
+        next:
+          - if: "slots.get('ticket_create_success') == 'true'"
+            then: create_success
+          - else: create_failed
+      - id: create_success
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "工单已创建成功，工单编号 {{ slots.ticket_no }}。我们会在 1-3 个工作日内跟进处理，处理进展会及时通知您。您可以随时凭工单编号查询进度。"
+        next: end
+      - id: create_failed
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "{{ slots.ticket_message }}"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  human_handoff:
+    name: 人工客服
+    description: 将当前对话转交给人工客服处理。
+    steps:
+      - id: start
+        type: start
+        next: respond
+      - id: respond
+        type: action
+        action: action_response
+        args:
+          text: "好的，正在为您转接人工客服，请稍候。人工客服工作时间以网点公示为准，紧急资金安全问题请拨打客服热线。"
+        next: end
+      - id: end
+        type: end
+        next: []

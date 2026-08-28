@@ -1,0 +1,196 @@
+flows:
+  system_task_started:
+    description: Flow for acknowledging that a new task has started
+    name: task started acknowledgement
+    steps:
+      - id: start
+        type: start
+        next: acknowledge
+      - id: acknowledge
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "好的，我们来办理{{ context.started_flow_name }}。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  system_collect_information:
+    description: Flow for asking the user for a slot value during a collect step
+    name: collect information
+    steps:
+      - id: start
+        type: start
+        next: ask
+      - id: ask
+        type: action
+        action: action_response
+        args: context.response
+        next: listen
+      - id: listen
+        type: action
+        action: action_listen
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  system_task_resumed:
+    description: Flow for acknowledging that a paused task has been resumed
+    name: task resumed acknowledgement
+    steps:
+      - id: start
+        type: start
+        next: acknowledge
+      - id: acknowledge
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "好的，我们继续刚才的{{ context.resumed_flow_name }}。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  system_task_resume_failed:
+    description: Flow for explaining that no paused task can be resumed
+    name: task resume failed acknowledgement
+    steps:
+      - id: start
+        type: start
+        next: acknowledge
+      - id: acknowledge
+        type: action
+        action: action_response
+        args:
+          text: "当前没有找到可以继续办理的业务。您可以告诉我需要办理什么业务，例如查余额、查交易、申请贷款或提交投诉。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  system_task_interrupted:
+    description: Flow for acknowledging that the current task has been interrupted
+    name: task interrupted acknowledgement
+    steps:
+      - id: start
+        type: start
+        next: acknowledge
+      - id: acknowledge
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "好的，先把{{ context.interrupted_flow_name }}放一放，我们优先处理{{ context.started_flow_name }}。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  system_task_canceled:
+    description: Flow for acknowledging that the current task was canceled
+    name: task canceled acknowledgement
+    steps:
+      - id: start
+        type: start
+        next: acknowledge
+      - id: acknowledge
+        type: action
+        action: action_response
+        args:
+          mode: static
+          text: "好的，已为您取消{{ context.canceled_flow_name }}。已收集的信息不会用于其他业务。"
+        next: end
+      - id: end
+        type: end
+        next: []
+
+  system_cannot_handle:
+    description: Flow for handling requests the assistant cannot support
+    name: cannot handle request
+    steps:
+      - id: start
+        type: start
+        next:
+          - if: "context.get('reason') == 'clarification_rejected'"
+            then: clarification_rejected
+          - if: "context.get('reason') == 'not_supported'"
+            then: not_supported
+          - if: "context.get('reason') == 'no_relevant_answer'"
+            then: no_relevant_answer
+          - else: ask_rephrase
+
+      - id: clarification_rejected
+        type: action
+        action: action_response
+        args:
+          mode: rephrase
+          text: "抱歉，我刚才可能理解有误。您可以重新说明需要办理的业务，例如查询账户余额、查询交易明细、申请贷款、信用卡挂失或提交投诉工单。"
+          prompt: |
+            你是一个中文金融客服助手，语气专业、友好、简洁，不做任何收益承诺。
+            请基于下面的建议回复，生成一句更自然的中文回复，保持原意，不要扩写。
+            对话上下文：
+            {history}
+            用户最后一句：
+            用户：{user_message}
+            建议回复：{current_response}
+            改写后的回复：
+        next: end
+
+      - id: not_supported
+        type: action
+        action: action_response
+        args:
+          mode: rephrase
+          text: "我理解您的需求，不过该业务暂未接入智能客服。您可以尝试其他业务咨询，或回复“转人工”由人工客服为您处理。"
+          prompt: |
+            你是一个中文金融客服助手，语气专业、友好、简洁。
+            请基于下面的建议回复，生成一句更自然的中文回复，保持原意，不要扩写。
+            对话上下文：
+            {history}
+            用户最后一句：
+            用户：{user_message}
+            建议回复：{current_response}
+            改写后的回复：
+        next: end
+
+      - id: no_relevant_answer
+        type: action
+        action: action_response
+        args:
+          mode: rephrase
+          text: "抱歉，这个问题我暂时没有找到可靠答案。为避免提供不准确的金融信息，建议您换一种方式描述，或回复“转人工”咨询人工客服。"
+          prompt: |
+            你是一个中文金融客服助手，语气专业、友好、简洁。
+            请基于下面的建议回复，生成一句更自然的中文回复，保持原意，不要扩写。
+            对话上下文：
+            {history}
+            用户最后一句：
+            用户：{user_message}
+            建议回复：{current_response}
+            改写后的回复：
+        next: end
+
+      - id: ask_rephrase
+        type: action
+        action: action_response
+        args:
+          mode: rephrase
+          text: "不好意思，我没有完全理解您的意思。您可以直接说明要办理的业务，例如查余额、查交易、申请贷款、信用卡挂失或提交投诉。"
+          prompt: |
+            你是一个中文金融客服助手，语气专业、友好、简洁。
+            请基于下面的建议回复，生成一句更自然的中文回复，保持原意，不要扩写。
+            对话上下文：
+            {history}
+            用户最后一句：
+            用户：{user_message}
+            建议回复：{current_response}
+            改写后的回复：
+        next: end
+
+      - id: end
+        type: end
+        next: []
